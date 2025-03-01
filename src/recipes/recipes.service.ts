@@ -2,62 +2,92 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Recipe } from './entities/recipe.entity';
 import { UpdateRecipeDto } from './dto/update-recipe.dto';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Ingredient } from './entities/ingredients.entity';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto.ts/pagination-query.dto';
 
 @Injectable()
 export class RecipesService {
-  recipes: Recipe[] = [
-    {
-      id: 'abc',
-      title: 'Recipe 1',
-      description: 'Description 1',
-      ingredients: ['Ingredient 1', 'Ingredient 2'],
-    },
-    {
-      id: 'def',
-      title: 'Recipe 2',
-      description: 'Description 2',
-      ingredients: ['Ingredient 3', 'Ingredient 4'],
-    },
-  ];
+  constructor(
+    @InjectRepository(Recipe)
+    private recipesRepository: Repository<Recipe>,
+    @InjectRepository(Ingredient)
+    private ingredientsRepository: Repository<Ingredient>,
+  ) {}
 
-  findAll() {
-    return this.recipes;
+  async findAll(paginationQueryDto: PaginationQueryDto) {
+    const { limit, offset } = paginationQueryDto;
+    return await this.recipesRepository.find({
+      relations: ['ingredients'],
+      take: limit,
+      skip: offset,
+    });
   }
 
-  findOne(id: string) {
-    const recipe = this.recipes.find((recipe) => recipe.id === id);
+  async findOne(id: string) {
+    const recipe = await this.recipesRepository.findOne({
+      where: { id },
+      relations: ['ingredients'],
+    });
 
     if (!recipe) {
-      throw new NotFoundException(`Recipe with id "${id}" not found`);
-      // throw new HttpException(
-      //   `Recipe with id "${id}" not found`,
-      //   HttpStatus.NOT_FOUND,
-      // );
+      throw new NotFoundException(`Recipe #${id} not found`);
     }
+
     return recipe;
   }
 
-  create(createRecipeDto: CreateRecipeDto) {
-    const recipe = {
-      id: crypto.randomUUID(),
+  async create(createRecipeDto: CreateRecipeDto) {
+    const ingredients = await Promise.all(
+      createRecipeDto.ingredients.map((name) =>
+        this.preloadIngredientByName(name),
+      ),
+    );
+
+    const recipe = this.recipesRepository.create({
       ...createRecipeDto,
-    };
-    this.recipes.push(recipe);
-    return recipe;
+      ingredients,
+    });
+
+    return await this.recipesRepository.save(recipe);
   }
 
-  update(id: string, updateRecipeDto: UpdateRecipeDto) {
-    const existingRecipe = this.findOne(id);
+  async update(id: string, updateRecipeDto: UpdateRecipeDto) {
+    const ingredients =
+      updateRecipeDto.ingredients &&
+      (await Promise.all(
+        updateRecipeDto?.ingredients?.map((name) =>
+          this.preloadIngredientByName(name),
+        ),
+      ));
 
-    if (existingRecipe) {
-      console.log({ updateRecipeDto });
+    const recipe = await this.recipesRepository.preload({
+      id,
+      ...updateRecipeDto,
+      ingredients,
+    });
+
+    if (!recipe) {
+      throw new NotFoundException(`Recipe #${id} not found`);
     }
+
+    return await this.recipesRepository.save(recipe);
   }
 
-  remove(id: string) {
-    const recipeIndex = this.recipes.findIndex((recipe) => recipe.id === id);
-    if (recipeIndex >= 0) {
-      this.recipes.splice(recipeIndex, 1);
-    }
+  async remove(id: string) {
+    const recipe = await this.findOne(id);
+
+    return await this.recipesRepository.remove(recipe);
+  }
+
+  private async preloadIngredientByName(name: string) {
+    const ingredient = await this.ingredientsRepository.findOne({
+      where: { name },
+    });
+
+    if (ingredient) return ingredient;
+
+    return this.ingredientsRepository.create({ name });
   }
 }

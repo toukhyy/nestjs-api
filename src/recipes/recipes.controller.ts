@@ -6,19 +6,20 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { RecipesService } from './recipes.service';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
 import { UpdateRecipeDto } from './dto/update-recipe.dto';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto.ts/pagination-query.dto';
 
 @Controller('recipes')
 export class RecipesController {
   constructor(private recipesService: RecipesService) {}
 
-  // findAll(@Query() paginationQuery: { limit: string; offset: string }) {
   @Get()
-  findAll() {
-    return this.recipesService.findAll();
+  findAll(@Query() paginationQueryDto: PaginationQueryDto) {
+    return this.recipesService.findAll(paginationQueryDto);
   }
 
   @Get(':id')
