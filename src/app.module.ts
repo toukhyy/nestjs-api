@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { RecipesModule } from './recipes/recipes.module';
+import { RecipesModule } from './recipes/application/recipes.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
@@ -26,7 +26,6 @@ import * as Joi from 'joi';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       autoLoadEntities: true,
-      synchronize: true, // disable in production
     }),
   ],
   controllers: [AppController],
